@@ -128,15 +128,29 @@ class NYTArchiveClient:
         if filename is None:
             year = int(input("What year would you like to retrieve? "))
             month = int(input("What month would you like to retrieve? (1-12) "))
-            filename = f"nyt_{year}_{month}.csv"
+            filename = f"NYT_Data/nyt_{year}_{month}.csv"
 
-        chosen_df = pd.read_csv(filename)
+        while True:
+            try:
+                chosen_df = pd.read_csv(filename)
+            except FileNotFoundError:
+                error_choice = input(f"File '{filename}' not found. Fetch data from NYT? (y/n) ").lower()
+                if error_choice == 'y':
+                    self.save_csv()
+                    continue
+                else:
+                    print("Exiting choose_section.")
+                    return None
 
-        section_choice = input("Which section would you like to sort by? ")
-        
-        filtered_df = chosen_df[chosen_df['section_name'] == section_choice]
+            print("Available sections:", chosen_df["section_name"].unique())
+            section_choice = input("Which section would you like to sort by? ")
 
-        print(f"\nArticles in section '{section_choice}':")
-        print(filtered_df.head())
+            filtered_df = chosen_df[chosen_df['section_name'].str.contains(section_choice, case=False, na=False)]
+            if filtered_df.empty:
+                print(f"No articles found for '{section_choice}'.")
+                continue
+            else:              
+                print(f"\nTotal articles retrieved: {len(filtered_df)} in section '{section_choice}'")
+                print(filtered_df.head())
 
-        return filtered_df
+            return filtered_df
