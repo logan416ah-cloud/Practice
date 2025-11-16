@@ -152,6 +152,5 @@ class NYTArchiveClient:
                 continue
             else:              
                 print(f"\nTotal articles retrieved: {len(filtered_df)} in section '{section_choice}'\n")
-                print(filtered_df.head())
-
-            return filtered_df
+                return filtered_df.head()
+                
