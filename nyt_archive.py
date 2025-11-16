@@ -126,31 +126,98 @@ class NYTArchiveClient:
             print(f"\nTotal articles retrieved: {len(articles)}")
         
     
-    def choose_section(self, filename=None):
-        if filename is None:
+    def choose_section(self, dataframe=None, filename=None):
+
+        if dataframe is not None and filename is None:
+            chosen_df = dataframe
+
+        elif dataframe is None and filename is None:
             _, year, month = self.build_url()
             filename = f"NYT_Data/nyt_{year}_{month}.csv"
 
-        while True:
-            try:
-                chosen_df = pd.read_csv(filename)
-            except FileNotFoundError:
-                error_choice = input(f"File '{filename}' not found. Fetch data from NYT? (y/n) ").lower()
-                if error_choice == 'y':
-                    self.save_csv(year, month)
-                    continue
-                else:
-                    print("Exiting choose_section.")
-                    return None
+            while True:
+                try:
+                    chosen_df = pd.read_csv(filename)
+                except FileNotFoundError:
+                    error_choice = input(f"File '{filename}' not found. Fetch data from NYT? (y/n) ").lower()
+                    if error_choice == 'y':
+                        self.save_csv(year, month)
+                        continue
+                    else:
+                        print("Exiting choose_section.")
+                        return None
+        
 
-            print("Available sections:", chosen_df["section_name"].unique())
-            section_choice = input("Which section would you like to sort by? ")
+        print("Available sections:", chosen_df["section_name"].unique())
+        section_choice = input("Which section would you like to sort by? ")
 
-            filtered_df = chosen_df[chosen_df['section_name'].str.contains(section_choice, case=False, na=False)]
-            if filtered_df.empty:
-                print(f"No articles found for '{section_choice}'.")
-                continue
-            else:              
-                print(f"\nTotal articles retrieved: {len(filtered_df)} in section '{section_choice}'\n")
-                return filtered_df.head()
-                
+        filtered_df = chosen_df[chosen_df['section_name'].str.contains(section_choice, case=False, na=False)]
+        if filtered_df.empty:
+            print(f"No articles found for '{section_choice}'.")
+            return
+        else:              
+            print(f"\nTotal articles retrieved: {len(filtered_df)} in section '{section_choice}'\n")
+            return filtered_df.head()
+
+class Pullexistingdata:
+    def __init__(self):
+        self.start_year = 1851
+        self.end_year = datetime.today().year
+        self.file_list =[]
+
+    def fetch_files(self):
+        for file in Path("NYT_Data").glob("nyt_*.csv"):
+            self.file_list.append(file)
+                                  
+        self.file_df = pd.DataFrame(self.file_list)
+        return self.file_df
+
+    def read_csv_files(self):
+        if not self.file_list:
+            self.fetch_files()
+        
+        dataframes = []
+        for file in self.file_list:
+            df = pd.read_csv(file)
+            dataframes.append(df)
+
+        return dataframes
+    
+    def combine_all(self):
+        dfs = self.read_csv_files()
+        if not dfs:
+            return pd.DataFrame()
+        
+        full_list = pd.concat(dfs, ignore_index=True)
+        return full_list
+    
+    def filter_by_date(self, year, month, day):
+        df = self.combine_all()
+        if df.empty:
+            return pd.DataFrame()
+
+        df['publish_date'] = pd.to_datetime(df['publish_date'])
+
+        target_date = pd.Timestamp(year=int(year), month=int(month), day=int(day))
+        
+        result = df[df['publish_date'].dt.date == target_date.date()]
+
+        return result
+    
+    def filter_by_section(self, section):
+        df = self.combine_all()
+        if df.empty:
+            return pd.DataFrame()
+        
+        result = df[df['section_name'].str.contains(section, case=False, na=False)]
+        return result
+    
+    def filter_by_headline(self, *keywords):
+        df = self.combine_all()
+        if df.empty:
+            return pd.DataFrame()
+        
+        keywords = "|".join(keywords)
+
+        result = df[df['headline'].str.contains(keywords, case=False, na=False)]
+        return result
