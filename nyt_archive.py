@@ -1,6 +1,5 @@
 import requests
 import pandas as pd
-from getpass import getpass
 from datetime import datetime
 from tqdm import tqdm
 from pathlib import Path
@@ -99,8 +98,11 @@ class NYTArchiveClient:
         )
         return article_df.sort_values(by='publish_date')
 
-    def save_csv(self):
-        baseurl, year, month = self.build_url()
+    def save_csv(self, year=None, month=None):
+        if year is None or month is None:
+            baseurl, year, month = self.build_url()
+        else:
+            baseurl = f'https://api.nytimes.com/svc/archive/v1/{year}/{month}.json'
         if not baseurl:
             return
 
@@ -126,8 +128,7 @@ class NYTArchiveClient:
     
     def choose_section(self, filename=None):
         if filename is None:
-            year = int(input("What year would you like to retrieve? "))
-            month = int(input("What month would you like to retrieve? (1-12) "))
+            _, year, month = self.build_url()
             filename = f"NYT_Data/nyt_{year}_{month}.csv"
 
         while True:
@@ -136,7 +137,7 @@ class NYTArchiveClient:
             except FileNotFoundError:
                 error_choice = input(f"File '{filename}' not found. Fetch data from NYT? (y/n) ").lower()
                 if error_choice == 'y':
-                    self.save_csv()
+                    self.save_csv(year, month)
                     continue
                 else:
                     print("Exiting choose_section.")
@@ -150,7 +151,7 @@ class NYTArchiveClient:
                 print(f"No articles found for '{section_choice}'.")
                 continue
             else:              
-                print(f"\nTotal articles retrieved: {len(filtered_df)} in section '{section_choice}'")
+                print(f"\nTotal articles retrieved: {len(filtered_df)} in section '{section_choice}'\n")
                 print(filtered_df.head())
 
             return filtered_df
