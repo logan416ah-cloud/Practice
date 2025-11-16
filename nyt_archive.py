@@ -69,10 +69,10 @@ class NYTArchiveClient:
             if not self.is_valid_month(month):
                 print("Please enter a valid month as an integer (1-12).")
                 continue
-            else:
-                baseurl = f'https://api.nytimes.com/svc/archive/v1/{year}/{month}.json'
-                print("URL:", baseurl)
-                return baseurl, year, month
+        
+            baseurl = f'https://api.nytimes.com/svc/archive/v1/{year}/{month}.json'
+            print("URL:", baseurl)
+            return baseurl, year, month
 
     @staticmethod
     def get_articles(data):
@@ -122,42 +122,21 @@ class NYTArchiveClient:
     
             print(f"\nSaved as {file_path}")
             print(f"\nTotal articles retrieved: {len(articles)}")
-
-# if __name__=='__main__':
-#     while True:
-#         API_KEY = getpass("Enter your NYT API Key: ") # Hides API Key for security
-#         if NYTArchiveClient.validate_key(API_KEY):
-#             break
-#         print("Invalid key, please try again.")
-
-
-#     params = {'api-key':API_KEY}
-
-    # user_year = int(input("What year would you like to retrieve? "))
-    # user_month = int(input("What month would you like to retrieve? "))
-
-    # if NYTArchiveClient.is_valid_year(user_year) and NYTArchiveClient.is_valid_month(user_month):
-    #     baseurl = f'https://api.nytimes.com/svc/archive/v1/{user_year}/{user_month}.json'
-    #     print("URL:", baseurl)
-    # else:
-    #     print("Invalid input.")
-    #     exit()
-
-    # baseurl = f'https://api.nytimes.com/svc/archive/v1/{user_year}/{user_month}.json'
-
-
-    # data = NYTArchiveClient.main_request(baseurl, params)
-    # articles = NYTArchiveClient.get_articles(data)
-    # print(articles.head())
-
-    # choice = input("\nWould you like to save as CSV (y/n)? ").lower()
-    # if choice == 'y':
-    #     folder = Path("NYT_Data")
-    #     folder.mkdir(exist_ok=True)
-    #     file_path = folder / f"nyt_{user_year}_{user_month}.csv"
-    #     articles.to_csv(file_path)
+        
     
-    #     print(f"\nSaved as {file_path}")
-    #     print(f"\nTotal articles retrieved: {len(articles)}")
-    # else:
-    #     print("Closing program.")
+    def choose_section(self, filename=None):
+        if filename is None:
+            year = int(input("What year would you like to retrieve? "))
+            month = int(input("What month would you like to retrieve? (1-12) "))
+            filename = f"nyt_{year}_{month}.csv"
+
+        chosen_df = pd.read_csv(filename)
+
+        section_choice = input("Which section would you like to sort by? ")
+        
+        filtered_df = chosen_df[chosen_df['section_name'] == section_choice]
+
+        print(f"\nArticles in section '{section_choice}':")
+        print(filtered_df.head())
+
+        return filtered_df
