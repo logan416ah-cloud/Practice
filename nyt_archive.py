@@ -47,31 +47,42 @@ class NYTArchiveClient:
         try:
             response = requests.get(baseurl,params=self.params)
             response.raise_for_status()
-            return response.json()
+
+            try:
+                return response.json()
+            except ValueError:
+                print("Error: Response is not a valid JSON")
+                return None
+
         except requests.exceptions.RequestException as e:
             print(f"Network/API error: {e}")
             return None
 
-    def build_url(self):
-        while True:
-            try:
-                year = int(input("What year would you like to retrieve? "))
-                month = int(input("What month would you like to retrieve? (1-12) "))
-            except ValueError:
-                print("Please enter valid numbers for year and month.")
-                continue
+    def build_url(self, year=None, month=None):
 
-            if not self.is_valid_year(year):
-                print("Enter a valid year between 1851 and the Current Year")
-                continue
-            
-            if not self.is_valid_month(month):
-                print("Please enter a valid month as an integer (1-12).")
-                continue
+        # If not provided -> ask user
+        if year is None or month is None:
+            while True:
+                try:
+                    year = int(input("Enter year: "))
+                    month = int(input("Enter month (1-12): "))
+                except ValueError:
+                    print("Enter valid integers.")
+                    continue
+                
+                if self.is_valid_year(year) and self.is_valid_month(month):
+                    break
+
+                print("Invalid date. Try again.")
+
+        # Validate programmatic input
+        if not self.is_valid_year(year):
+            raise ValueError("Invalid year")
+        if not self.is_valid_month(month):
+            raise ValueError("Invalid month")
         
-            baseurl = f'https://api.nytimes.com/svc/archive/v1/{year}/{month}.json'
-            print("URL:", baseurl)
-            return baseurl, year, month
+        baseurl = f'https://api.nytimes.com/svc/archive/v1/{year}/{month}.json'
+        return baseurl, year, month
 
     @staticmethod
     def get_articles(data):
@@ -99,12 +110,11 @@ class NYTArchiveClient:
         return article_df.sort_values(by='publish_date')
 
     def save_csv(self, year=None, month=None):
+
         if year is None or month is None:
             baseurl, year, month = self.build_url()
         else:
-            baseurl = f'https://api.nytimes.com/svc/archive/v1/{year}/{month}.json'
-        if not baseurl:
-            return
+            baseurl = f"https://api.nytimes.com/svc/archive/v1/{year}/{month}.json"
 
         data = self.main_request(baseurl)
         if not data:
@@ -112,58 +122,19 @@ class NYTArchiveClient:
         
         articles = self.get_articles(data)
 
-        print("\nPREVIEW:")
-        print(articles.head())
+        folder = Path("NYT_Data")
+        folder.mkdir(exist_ok=True)
+        file_path = folder / f"nyt_{year}_{month}.csv"
+        articles.to_csv(file_path, index=False)
 
-        choice = input("\nWould you like to save as CSV (y/n)? ").lower()
-        if choice == 'y':
-            folder = Path("NYT_Data")
-            folder.mkdir(exist_ok=True)
-            file_path = folder / f"nyt_{year}_{month}.csv"
-            articles.to_csv(file_path, index=False)
+        return(f"\nSaved as {file_path}. Total articles retrieved: {len(articles)}")
     
-            print(f"\nSaved as {file_path}")
-            print(f"\nTotal articles retrieved: {len(articles)}")
-        
-    
-    def choose_section(self, dataframe=None, filename=None):
-
-        if dataframe is not None and filename is None:
-            chosen_df = dataframe
-
-        elif dataframe is None and filename is None:
-            _, year, month = self.build_url()
-            filename = f"NYT_Data/nyt_{year}_{month}.csv"
-
-            while True:
-                try:
-                    chosen_df = pd.read_csv(filename)
-                except FileNotFoundError:
-                    error_choice = input(f"File '{filename}' not found. Fetch data from NYT? (y/n) ").lower()
-                    if error_choice == 'y':
-                        self.save_csv(year, month)
-                        continue
-                    else:
-                        print("Exiting choose_section.")
-                        return None
-        
-
-        print("Available sections:", chosen_df["section_name"].unique())
-        section_choice = input("Which section would you like to sort by? ")
-
-        filtered_df = chosen_df[chosen_df['section_name'].str.contains(section_choice, case=False, na=False)]
-        if filtered_df.empty:
-            print(f"No articles found for '{section_choice}'.")
-            return
-        else:              
-            print(f"\nTotal articles retrieved: {len(filtered_df)} in section '{section_choice}'\n")
-            return filtered_df.head()
-
 class Pullexistingdata:
     def __init__(self):
         self.start_year = 1851
         self.end_year = datetime.today().year
         self.file_list =[]
+        self._combined = None # cache for combined DataFrame
 
     def fetch_files(self):
         for file in Path("NYT_Data").glob("nyt_*.csv"):
@@ -184,14 +155,22 @@ class Pullexistingdata:
         return dataframes
     
     def combine_all(self):
+        # If already cached, return cahced version
+        if self._combined is not None:
+            return self._combined
+
         dfs = self.read_csv_files()
         if not dfs:
             return pd.DataFrame()
         
-        full_list = pd.concat(dfs, ignore_index=True)
-        return full_list
+        self._combined = pd.concat(dfs, ignore_index=True)
+        return self._combined
     
-    def filter_by_date(self, year, month, day):
+    def filter_by_date(self, year: int, month: int, day: int) -> pd.DataFrame:
+        """
+        Filters the combined dataframe by a date from
+        publish_date. Returns a DataFrame.
+        """
         df = self.combine_all()
         if df.empty:
             return pd.DataFrame()
@@ -203,8 +182,12 @@ class Pullexistingdata:
         result = df[df['publish_date'].dt.date == target_date.date()]
 
         return result
-    
+
     def filter_by_section(self, section):
+        """
+        Filters the combined dataframe by a partial (case-insensitive)
+        match on section_name. Returns a DataFrame.
+        """
         df = self.combine_all()
         if df.empty:
             return pd.DataFrame()
@@ -213,11 +196,32 @@ class Pullexistingdata:
         return result
     
     def filter_by_headline(self, *keywords):
+        """
+        Filters the combined dataframe by specifed keywords (case-insensitive)
+        from the available headlines. Returns a DataFrame.
+        """
+        df = self.combine_all()
+        if df.empty or not keywords:
+            return pd.DataFrame()
+        
+        keywords = "|".join(keywords)
+        result = df[df['headline'].str.contains(keywords, case=False, na=False)]
+        return result
+    
+    def show_available(self):
         df = self.combine_all()
         if df.empty:
             return pd.DataFrame()
         
-        keywords = "|".join(keywords)
+        df['publish_date'] = pd.to_datetime(df['publish_date'], errors='coerce')
 
-        result = df[df['headline'].str.contains(keywords, case=False, na=False)]
-        return result
+        available_dates = df['publish_date'].dt.to_period('M').unique()
+        available_sections = df['section_name'].dropna().unique()
+
+        print("Available dates:")
+        for d in sorted(available_dates):
+            print(" -", d)
+
+        print("Available sections:")
+        for s in sorted(available_sections):
+            print(" -", s)
