@@ -1,3 +1,38 @@
+# This program pulls archived articles from the New York Times API.
+# It requires a valid NYT API Key and a range of years to download.
+# 
+# Note: The NYT API allows a maximum of 5 requests per minute, so 
+#       the program waits 12 seconds between requests.
+#
+# EXAMPLE USE FOR NYTArchiveClient:
+#
+# my_key = 'your NYT API key'
+# client = NYTArchiveClient('my_key', 1996, 1999)
+# client.start_download()
+# 
+# This will download articles for every month between 1996 and 1999.
+# 
+# IMPORTANT: You must have a valid NYT API Key for this to work.
+#
+# -------------------------------------------
+# EXAMPLE USE FOR Tickler():
+# 
+# tickle = Tickler()
+# print(tickle.filter_by_headline('Trump'))
+# 
+# EXAMPLE OUTPUT:
+# 
+#         publish_date  section_name        headline              url
+# 6         2023-11-14          U.S.    Blah Blah Blah...   https://www.nytimes.com/
+# 29        2021-01-01       Climate    Blah Blah Blah...   https://www.nytimes.com/
+# 79        2020-04-01      New York    Blah Blah Blah...   https://www.nytimes.com/
+# 88        2017-09-04       Opinion    Blah Blah Blah...   https://www.nytimes.com/
+# 91        2009-07-19          U.S.    Blah Blah Blah...   https://www.nytimes.com/
+#
+# [472 rows x 4 columns]
+
+
+
 import requests
 import pandas as pd
 from datetime import datetime
@@ -59,7 +94,7 @@ class NYTArchiveClient():
             api_key (str): NYT API key to validate
 
         Returns:
-            boolean: True if key is valid, False if not.
+            bool: True if key is valid, False if not.
         """
 
         test_url = 'https://api.nytimes.com/svc/mostpopular/v2/emailed/7.json'
@@ -82,7 +117,7 @@ class NYTArchiveClient():
             year (int):Year to check.
 
         Returns:
-            boolean: True if year is between 1851 and the current year. False if not.
+            bool: True if year is between 1851 and the current year. False if not.
         """
         try:
             year = int(year)
@@ -146,7 +181,7 @@ class NYTArchiveClient():
 
                 time.sleep(12) # IMPORTANT - NYT API allows for 5 requests a minute.
 
-class Pullexistingdata:
+class Tickler:
     """
     Handles combining and filtering downloaded NYT archive CSVs.
 
@@ -175,7 +210,7 @@ class Pullexistingdata:
             
     def combine_all(self, year1=None, year2=None):
         """
-        Combines all CSV files into a singe DataFrame.
+        Combines all CSV files into a single DataFrame.
         Uses caching to avoid reloading unchanged files.
 
         Args:
@@ -183,7 +218,7 @@ class Pullexistingdata:
             year2 (int, optional): End year to filter files.
 
         Returns:
-            _combined: Combined DataFrame of all articles.
+            pd.DataFrame: Combined DataFrame of all CSV articles.
         """
 
         if year1 is not None and year2 is not None:
@@ -213,7 +248,7 @@ class Pullexistingdata:
         Filters the combined dataframe by a specific date.
 
         Args:
-            years (int)
+            year (int)
             month (int)
             day (int)
         
