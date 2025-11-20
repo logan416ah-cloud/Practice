@@ -57,3 +57,7 @@ class NYTArchiveClient():
                 article_df.to_csv(file_path, index=False)
 
                 time.sleep(1)
+
+if __name__=="__main__":
+    client = NYTArchiveClient('YOUR API')
+    client.start_download()
