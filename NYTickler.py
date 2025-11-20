@@ -6,7 +6,29 @@ from pathlib import Path
 import time
 
 class NYTArchiveClient():
+    """
+    A client for downloading New York Times articles from the archive API.
+
+    Attributes:
+        years (range): Range of years to download.
+        months (range): Range of months (1-12) to download.
+        api_key (str): NYT API key.
+    """
+
     def __init__(self, api_key, year1, year2):
+        """
+        Initializes the client with a year range and validates the API key.
+
+        Args:
+            api_key(str): Your NYT API key.
+            year1 (int): Starting year for archive download
+            year2 (int): Ending year for archive download
+
+        Raises:
+            ValueError: If the API key is invalid, years are not integers.
+                        year1 > year2, or years are not in range.
+        """
+
         if not self.validate_key(api_key):
             raise ValueError("Invalid NYT API key")
         try:
@@ -29,10 +51,20 @@ class NYTArchiveClient():
         self.params = {"api-key": api_key}
     
     @staticmethod
-    def validate_key(api_key):
+    def validate_key(api_key): 
+        """
+        Validates your API key by using a test request.
+
+        Args:
+            api_key (str): NYT API key to validate
+
+        Returns:
+            boolean: True if key is valid, False if not.
+        """
+
         test_url = 'https://api.nytimes.com/svc/mostpopular/v2/emailed/7.json'
         try:
-            response = requests.get(test_url, params={'api_key': api_key}, timeout=7)
+            response = requests.get(test_url, params={'api-key': api_key}, timeout=7)
             if response.status_code == 200:
                 return True
             else:
@@ -43,6 +75,15 @@ class NYTArchiveClient():
 
     @staticmethod
     def is_valid_year(year):
+        """
+        Validates whether if a year falls within the valid NYT archive range.
+
+        Args:
+            year (int):Year to check.
+
+        Returns:
+            boolean: True if year is between 1851 and the current year. False if not.
+        """
         try:
             year = int(year)
         except ValueError:
@@ -50,9 +91,15 @@ class NYTArchiveClient():
         return 1851 <= year <= datetime.today().year
 
     def start_download(self):
+        """
+        Downloads NYT articles for the specified year/month range
+        and saves each month as a CSV file in 'NYT_Data' folder.
+        """
+
         folder = Path("NYT_Data")
         folder.mkdir(exist_ok=True)
 
+        # Loop through the years and months, download data
         for year in tqdm(self.years, desc='Years'):
             for month in tqdm(self.months, desc=f"Year {year}", leave=False):
 
@@ -68,6 +115,7 @@ class NYTArchiveClient():
                 docs = data.get("response", {}).get("docs", [])
                 article_list = []
 
+                # Extract relevant article information
                 for article in docs:
                     pub_date = article.get("pub_date")
                     section_name = article.get("section_name")
@@ -82,21 +130,33 @@ class NYTArchiveClient():
                     }
                     article_list.append(article_dict)
 
+                # Convert to DataFrame
                 article_df = pd.DataFrame(article_list)
 
                 if not article_df.empty:
+                    # Standardize data format
                     article_df['publish_date'] =(
                         pd.to_datetime(article_df['publish_date'])
                             .dt.strftime("%Y-%m-%d")
                     )
 
-               
+                # Save CSV for each month
                 file_path = folder / f"nyt_{year}_{month}.csv"
                 article_df.to_csv(file_path, index=False)
 
                 time.sleep(12) # IMPORTANT - NYT API allows for 5 requests a minute.
 
 class Pullexistingdata:
+    """
+    Handles combining and filtering downloaded NYT archive CSVs.
+
+    Attributes:
+        start_year (int): Earliest NYT archive year.
+        end_year (int): Current year.
+        _combined (DataFrame): Cached combined DataFrame of all CSVs.
+        _snapshot (dict): Tracks file modification times for caching
+    """
+
     def __init__(self):
         self.start_year = 1851
         self.end_year = datetime.today().year
@@ -115,8 +175,15 @@ class Pullexistingdata:
             
     def combine_all(self, year1=None, year2=None):
         """
-        Combines all CSV files downloaded and saved with 
-        NYTArchiveClient into 1 pandas dataframe.
+        Combines all CSV files into a singe DataFrame.
+        Uses caching to avoid reloading unchanged files.
+
+        Args:
+            year1 (int, optional): Start year to filter files.
+            year2 (int, optional): End year to filter files.
+
+        Returns:
+            _combined: Combined DataFrame of all articles.
         """
 
         if year1 is not None and year2 is not None:
@@ -143,9 +210,17 @@ class Pullexistingdata:
     
     def filter_by_date(self, year: int, month: int, day: int) -> pd.DataFrame:
         """
-        Filters the combined dataframe by a date from
-        publish_date. Returns a DataFrame.
+        Filters the combined dataframe by a specific date.
+
+        Args:
+            years (int)
+            month (int)
+            day (int)
+        
+        Returns:
+            pd.DataFrame: Filtered DataFrame with articles published on the specified date.
         """
+
         df = self.combine_all()
         if df.empty:
             return pd.DataFrame()
@@ -160,9 +235,15 @@ class Pullexistingdata:
 
     def filter_by_section(self, section):
         """
-        Filters the combined dataframe by a partial (case-insensitive)
-        match on section_name. Returns a DataFrame.
+        Filters the combined dataframe by section name (case-insensitive)
+
+        Args:
+            section (str)
+
+        Returns:
+            pd.DataFrame: Filtered DataFrame.
         """
+
         df = self.combine_all()
         if df.empty:
             return pd.DataFrame()
@@ -172,9 +253,15 @@ class Pullexistingdata:
     
     def filter_by_headline(self, *keywords):
         """
-        Filters the combined dataframe by specifed keywords (case-insensitive)
-        from the available headlines. Returns a DataFrame.
+        Filters the combined dataframe by headline keywords (case-insensitive)
+
+        Args:
+            *keywords: One or more keywords.
+
+        Returns:
+            pd.DataFrame: Filtered DataFrame
         """
+
         df = self.combine_all()
         if df.empty or not keywords:
             return pd.DataFrame()
@@ -184,6 +271,10 @@ class Pullexistingdata:
         return result
     
     def show_available(self):
+        """
+        Prints available months and sections in the combined dataset.
+        """
+
         df = self.combine_all()
         if df.empty:
             return pd.DataFrame()
