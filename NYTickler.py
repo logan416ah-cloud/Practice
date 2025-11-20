@@ -7,6 +7,8 @@ import time
 
 class NYTArchiveClient():
     def __init__(self, api_key, year1, year2):
+        if not self.validate_key(api_key):
+            raise ValueError("Invalid NYT API key")
         try:
             year1 = int(year1)
             year2 = int(year2)
@@ -15,13 +17,37 @@ class NYTArchiveClient():
 
         if year1 > year2:
             raise ValueError("year1 must be less than or equal to year2")
-        if year1 < 1851:
-            raise ValueError("NYT archive starts at 1851")
+        if not self.is_valid_year(year1) or not self.is_valid_year(year2):
+            raise ValueError(
+                "NYT archive starts at 1851"
+                "Please enter a year range that starts after 1851" 
+            )
         
         self.years = range(year1, year2 + 1)
         self.months = range(1, 13)
         self.api_key = api_key
         self.params = {"api-key": api_key}
+    
+    @staticmethod
+    def validate_key(api_key):
+        test_url = 'https://api.nytimes.com/svc/mostpopular/v2/emailed/7.json'
+        try:
+            response = requests.get(test_url, params={'api_key': api_key}, timeout=7)
+            if response.status_code == 200:
+                return True
+            else:
+                print(f"WARNING: API KEY may be invalid. Status code: {response.status_code}")
+        except requests.RequestException as e:
+            print(f"WARNING: API KEY check failed. Error: {e}")
+        return False
+
+    @staticmethod
+    def is_valid_year(year):
+        try:
+            year = int(year)
+        except ValueError:
+            return False
+        return 1851 <= year <= datetime.today().year
 
     def start_download(self):
         folder = Path("NYT_Data")
