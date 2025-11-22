@@ -234,7 +234,19 @@ class Tickler:
 
         mainframe= []
         for f in files:
-            df = pd.read_csv(f)
+            try:
+                df = pd.read_csv(f)
+
+            # IMPORTANT! Some NYT archive months have no data.
+            # Skips over files with no data. 
+            except pd.errors.EmptyDataError: 
+                print(f"Empty CSV skipped: {f}")
+                continue
+
+            if df.empty:
+                print(f"No data within {f}")
+                continue
+
             df['publish_date'] = pd.to_datetime(df["publish_date"])
             mainframe.append(df)
 
@@ -326,3 +338,12 @@ class Tickler:
         print("Available sections:")
         for s in sorted(available_sections, key=str.lower):
             print(" -", s)
+
+if __name__=='__main__':
+    api_key = 'Your NYT API Key' # Must add ***YOUR*** API key or program won't work
+
+    year1 = input("Enter start year: ")
+    year2 = input("Enter end year: ")
+
+    client = NYTArchiveClient(api_key, year1, year2)
+    client.start_download()
