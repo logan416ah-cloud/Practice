@@ -177,9 +177,95 @@ class JobSearch:
 
         return combined_jobs
 
-if __name__=='__main__':
 
-    j = JobSearch('Your_API_Key')
+class Clean:
+    def __init__(self):
 
-    my_search = j.search_all_states('Cybersecurity', save=True)
-    print(my_search)
+        self.base_path = Path(__file__).parent
+        self.data_folder = self.base_path / "Job_Listings"
+        if not self.data_folder.exists():
+            print("No Jobs_Listing folder. Run JobSearch.search()")
+            
+    def create_dataset(
+            self, 
+            job_title, 
+            location=None, 
+            all_states=False, 
+            save=False,
+            year=None,
+            month=None,
+            day=None,
+            date=None,
+            ):
+        
+        job_title_safe = job_title.replace(" ","_")
+        valid = (all_states and location is None) or (not all_states and location is not None)
+
+        if not valid:
+            raise ValueError("You must specify a location OR set ALL=True")
+
+        if save and not all_states:
+            raise ValueError("Dataset already saved to computer")
+
+        if location is not None:
+            location_safe = location.replace(" ","_")
+            prefix = f"{location_safe}_{job_title_safe}_jobs_"
+        else:
+            prefix = f"*_{job_title_safe}_jobs_"
+
+        if date:
+            year = date.year
+            month = date.month
+            day = date.day
+
+        if date or year or month or day:
+
+            if (month or day) and not year:
+                raise ValueError("Year is required when filtering by month or day.")
+
+            if year and month and day:
+                file_pattern = f"{prefix}{year}-{month:02d}-{day:02d}.csv"
+            elif year and month:
+                file_pattern = f"{prefix}{year}-{month:02d}-*.csv"
+            elif year:
+                file_pattern = f"{prefix}{year}-*.csv"
+
+        else:
+            file_pattern = f"{prefix}*.csv"
+
+        files = list(self.data_folder.glob(file_pattern))
+
+        if not files:
+            print("No data files found.")
+            return pd.DataFrame()
+        
+        datasets = []
+
+        for f in tqdm(files, desc="Loading job data", unit='file'):
+            try:
+                df = pd.read_csv(f)
+            except pd.errors.EmptyDataError:
+                print(f"\nEmpty CSV skipped: {f}")
+                continue
+            
+            datasets.append(df)
+        
+        combined_df = pd.concat(datasets, ignore_index=True) if datasets else pd.DataFrame()
+
+        if save and all_states:
+            save_path = self.base_path / "Job_Listings" / "Custom_dataset_folder"
+            save_path.mkdir(exist_ok=True)
+
+            file_path = save_path / f"combined_{job_title_safe}_dataset.csv"
+            combined_df.to_csv(file_path, index=False)
+
+        print(f"Combined dataset created with {len(combined_df)} rows.")
+        return combined_df
+
+
+# if __name__=='__main__':
+
+#     j = JobSearch('Your_API_Key')
+
+#     my_search = j.search_all_states('Cybersecurity', save=True)
+#     print(my_search)
