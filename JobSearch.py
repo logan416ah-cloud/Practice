@@ -5,6 +5,7 @@ import datetime as dt
 from tqdm import tqdm
 import re
 
+
 class JobSearch:
     """
     Searches for job listings using SerpApi's Google Jobs API.
@@ -19,12 +20,12 @@ class JobSearch:
 
         Args:
             api_key (str): Your SerpApi API Key
-        
+
         Raises:
-            ValueError: If the API key is invalid. 
+            ValueError: If the API key is invalid.
         """
 
-        self.url = 'https://serpapi.com/search.json'
+        self.url = "https://serpapi.com/search.json"
         self.api_key = api_key
 
         if not self.validate_key(api_key):
@@ -39,10 +40,10 @@ class JobSearch:
             api_key (str): SerpApi API Key to validate
 
         Returns:
-            bool: True if key is valid, False if not. 
+            bool: True if key is valid, False if not.
         """
 
-        url = 'https://serpapi.com/search.json'
+        url = "https://serpapi.com/search.json"
         params = {
             "engine": "google_jobs",
             "q": "test",
@@ -55,7 +56,9 @@ class JobSearch:
             if response.status_code == 200:
                 return True
             else:
-                print(f"WARNING: API KEY may be invalid. Status code: {response.status_code}")
+                print(
+                    f"WARNING: API KEY may be invalid. Status code: {response.status_code}"
+                )
                 return False
         except requests.RequestException as e:
             print(f"WARNING: API KEY check failed. Error: {e}")
@@ -69,7 +72,7 @@ class JobSearch:
             job_title (str): Career/Job title you want to search.
             location (str): The state you want your job search to take place.
             save (bool): Whether you want to save results to your computer.
-        
+
         Returns:
             pd.DataFrame: DataFrame of all search results.
         """
@@ -79,7 +82,7 @@ class JobSearch:
 
         page_count = 0
 
-        with tqdm(desc="Fetching pages", unit='pages') as pbar:
+        with tqdm(desc="Fetching pages", unit="pages") as pbar:
             while True:
                 params = {
                     "engine": "google_jobs",
@@ -89,7 +92,7 @@ class JobSearch:
                 }
 
                 if next_page_token:
-                    params['next_page_token'] = next_page_token
+                    params["next_page_token"] = next_page_token
 
                 search = requests.get(self.url, params=params)
                 results = search.json()
@@ -100,17 +103,23 @@ class JobSearch:
                     break
 
                 for job in jobs:
-                    job_list.append({
-                        'job_title': job.get("title"),
-                        'company': job.get("company_name"),
-                        'location': job.get("location"),
-                        'Qualifications': job.get('job_highlights', [{}])[0].get("items", []),
-                        'salary': job.get('detected_extensions', {}).get('salary'),
-                        'description': job.get("description"),
-                        'link': job.get("share_link")
-                    })
+                    job_list.append(
+                        {
+                            "job_title": job.get("title"),
+                            "company": job.get("company_name"),
+                            "location": job.get("location"),
+                            "Qualifications": job.get("job_highlights", [{}])[0].get(
+                                "items", []
+                            ),
+                            "salary": job.get("detected_extensions", {}).get("salary"),
+                            "description": job.get("description"),
+                            "link": job.get("share_link"),
+                        }
+                    )
 
-                next_page_token = results.get("serpapi_pagination", {}).get("next_page_token")
+                next_page_token = results.get("serpapi_pagination", {}).get(
+                    "next_page_token"
+                )
 
                 pbar.update(1)
 
@@ -134,16 +143,56 @@ class JobSearch:
 
     def search_all_states(self, job_title, save=False):
         states = [
-            "Alabama", "Alaska", "Arizona", "Arkansas", "California", "Colorado",
-            "Connecticut", "Delaware", "Florida", "Georgia", "Hawaii", "Idaho",
-            "Illinois", "Indiana", "Iowa", "Kansas", "Kentucky", "Louisiana",
-            "Maine", "Maryland", "Massachusetts", "Michigan", "Minnesota",
-            "Mississippi", "Missouri", "Montana", "Nebraska", "Nevada",
-            "New Hampshire", "New Jersey", "New Mexico", "New York",
-            "North Carolina", "North Dakota", "Ohio", "Oklahoma", "Oregon",
-            "Pennsylvania", "Rhode Island", "South Carolina", "South Dakota",
-            "Tennessee", "Texas", "Utah", "Vermont", "Virginia", "Washington",
-            "West Virginia", "Wisconsin", "Wyoming"
+            "Alabama",
+            "Alaska",
+            "Arizona",
+            "Arkansas",
+            "California",
+            "Colorado",
+            "Connecticut",
+            "Delaware",
+            "Florida",
+            "Georgia",
+            "Hawaii",
+            "Idaho",
+            "Illinois",
+            "Indiana",
+            "Iowa",
+            "Kansas",
+            "Kentucky",
+            "Louisiana",
+            "Maine",
+            "Maryland",
+            "Massachusetts",
+            "Michigan",
+            "Minnesota",
+            "Mississippi",
+            "Missouri",
+            "Montana",
+            "Nebraska",
+            "Nevada",
+            "New Hampshire",
+            "New Jersey",
+            "New Mexico",
+            "New York",
+            "North Carolina",
+            "North Dakota",
+            "Ohio",
+            "Oklahoma",
+            "Oregon",
+            "Pennsylvania",
+            "Rhode Island",
+            "South Carolina",
+            "South Dakota",
+            "Tennessee",
+            "Texas",
+            "Utah",
+            "Vermont",
+            "Virginia",
+            "Washington",
+            "West Virginia",
+            "Wisconsin",
+            "Wyoming",
         ]
 
         current_date = dt.datetime.today()
@@ -153,10 +202,9 @@ class JobSearch:
 
         safe_title = job_title.replace(" ", "_")
 
-
         all_jobs = []
 
-        for state in tqdm(states, desc="Searching through states...", unit='state'):
+        for state in tqdm(states, desc="Searching through states...", unit="state"):
             print(f"Searching {state}...")
 
             state_df = self.search(job_title, state, save=False)
@@ -168,8 +216,10 @@ class JobSearch:
                 if save:
                     state_file_path = folder / f"{state}_{safe_title}_jobs_{today}.csv"
                     state_df.to_csv(state_file_path, index=False)
-        
-        combined_jobs = pd.concat(all_jobs, ignore_index=True) if all_jobs else pd.DataFrame()
+
+        combined_jobs = (
+            pd.concat(all_jobs, ignore_index=True) if all_jobs else pd.DataFrame()
+        )
 
         if save:
             combined_path = folder / f"ALL_STATE_{safe_title}_jobs_{today}.csv"
@@ -180,73 +230,73 @@ class JobSearch:
 
 class Clean:
     def __init__(self):
-
         self.base_path = Path(__file__).parent
         self.data_folder = self.base_path / "Job_Listings"
         if not self.data_folder.exists():
             print("No Jobs_Listing folder. Run JobSearch.search()")
-            
+
     def create_dataset(
-            self, 
-            job_title, 
-            state=None, 
-            all_states=False, 
-            save=False,
-            year=None,
-            month=None,
-            day=None,
-            date=None,
-            ):
+        self,
+        job_title,
+        state=None,
+        all_states=False,
+        save=False,
+        year=None,
+        month=None,
+        day=None,
+        date=None,
+    ):
         """
         Loads and compiles job listing CSV files into a single pandas DataFrame.
 
         This method searches the 'Job_Listings' directory for CSV files that match
         the specified job titles, state, and optional date filters, then merges
-        them into on unified dataset.
-        
+        them into one unified dataset.
+
         Args:
             job_title (str): The job title to filter by (ex., "Cybersecurity").
-            state (str, optional): the state to filter by. (Must omit if 
+            state (str, optional): the state to filter by. (Must omit if
                 all_states=True).
             all_states (bool): If True, loads data from all states instead of
                 specific state.
             save (bool): Whether you want to save the dataset as CSV
             year (int, optional): Filter by year (YYYY).
-            month (int, optional): Filter by month (MM). Requires year. 
+            month (int, optional): Filter by month (MM). Requires year.
             day (int, optional): Filter by day (DD). Requires year & month.
-            date (datetime, optional): Full date object instead of 
+            date (datetime, optional): Full date object instead of
                 year/month/day arguments.
 
         Returns:
             pandas.DataFrame: The  DataFrame containing the merged job listing data.
 
         Raises:
-            ValueError: If both state and all_states are specified, or neither is. 
+            ValueError: If both state and all_states are specified, or neither is.
         """
-        
+
         # Converts job title into a string suited for the CSV file creation.
-        job_title_safe = job_title.replace(" ","_")
+        job_title_safe = job_title.replace(" ", "_")
 
         # Validate whether all_states or specified state. Can't have both.
         valid = (all_states and state is None) or (not all_states and state is not None)
 
         if not valid:
-            raise ValueError("You must specify a state OR set all_state=True")
+            raise ValueError(
+                "You must specify either a 'state' OR  'all_state=True', but not both"
+                )
 
         # Contruct the prefix for the file name.
         if state is not None:
-            state_safe = state.replace(" ","_") 
+            state_safe = state.replace(" ", "_")
             prefix = f"{state_safe}_{job_title_safe}_jobs_"
         else:
             prefix = f"*_{job_title_safe}_jobs_"
 
-        if date: # If date was specified, break down. 
+        if date:  # If date was specified, break down.
             year = date.year
             month = date.month
             day = date.day
 
         if date or year or month or day:
-
             if (month or day) and not year:
                 raise ValueError("Year is required when filtering by month or day.")
 
@@ -261,34 +311,35 @@ class Clean:
         else:
             file_pattern = f"{prefix}*.csv"
 
-        # List containing the specified files. 
+        # List containing the specified files.
         files = list(self.data_folder.glob(file_pattern))
 
         if not files:
             print("No data files found.")
             return pd.DataFrame()
-        
-        datasets = [] 
+
+        datasets = []
 
         # Loop to read through all CSV files and convert into a pandas DataFrame.
-        for f in tqdm(files, desc="Loading job data", unit='file'):
+        for f in tqdm(files, desc="Loading job data", unit="file"):
             try:
                 df = pd.read_csv(f)
             except pd.errors.EmptyDataError:
                 print(f"\nEmpty CSV skipped: {f}")
                 continue
-            
-            datasets.append(df) # Add the DataFrame to the list.
-        
-        # Combine the DataFrames into one. 
-        combined_df = pd.concat(datasets, ignore_index=True) if datasets else pd.DataFrame()
+
+            datasets.append(df)  # Add the DataFrame to the list.
+
+        # Combine the DataFrames into one.
+        combined_df = (
+            pd.concat(datasets, ignore_index=True) if datasets else pd.DataFrame()
+        )
 
         if not combined_df.empty and "salary" in combined_df.columns:
-
             # Applys parse_salary() to determine:
             # "min_raw","max_raw", "avg_value","annual","period"
             #
-            # Then applies it to the DataFrame. 
+            # Then applies it to the DataFrame.
             parsed = combined_df["salary"].apply(self.parse_salary)
 
             parsed_df = parsed.apply(pd.Series)
@@ -309,7 +360,7 @@ class Clean:
     def parse_salary(self, s):
         """
         Parse raw salary text into numeric values
-        
+
         Handles formats such as:
             "130K-160K a year"
             "30.00-37.50 an hour"
@@ -317,7 +368,7 @@ class Clean:
             "90K a year"
             "US$132K-US$180K a year"
             "$65K-$90K a year"
-        
+
         Args:
             s (str): Raw salary string from the dataset.
 
@@ -329,19 +380,21 @@ class Clean:
                 - annual (float or None): Annualized salary.
                 - period (str or None): "hour", "month", "year"
         """
-        
-        # If salary is missing OR not a string, return None. 
+
+        # If salary is missing OR not a string, return None.
         if not isinstance(s, str) or s.strip() == "":
-            return {k: None for k in ["min_raw","max_raw","avg_value","annual","period"]}
-    
-        original = s # Stores the original for period detection. 
+            return {
+                k: None for k in ["min_raw", "max_raw", "avg_value", "annual", "period"]
+            }
+
+        original = s  # Stores the original for period detection.
 
         # Removes extra characters in order to convert sting characters into a float.
-        s = s.replace(",","").replace("US$","").replace("$","").strip()
+        s = s.replace(",", "").replace("US$", "").replace("$", "").strip()
 
         # Determines the pay period from the original string.
         # Uses regex to check for "hour" or "hr" safely.
-        if re.search(r'\bhour\b|\bhr\b', original.lower()):
+        if re.search(r"\bhour\b|\bhr\b", original.lower()):
             period = "hour"
         elif "month" in original.lower():
             period = "month"
@@ -349,10 +402,10 @@ class Clean:
             period = "year"
 
         # --------------------------
-        # REGEX EXPLANATION 
+        # REGEX EXPLANATION
         #
         # \d: Matches any digit (0-9)
-        # .: Matches any character 
+        # .: Matches any character
         # []: Character set (matches any single character within the brackets)
         # +: Matches 1 or more occurences of the preceding element
         # (): Grouping (Captures the matched content)
@@ -374,7 +427,9 @@ class Clean:
         #     "6211–15211"
         # --------------------------
 
-        range_match = re.findall(r"([\d\.]+k?)\s*[–-]\s*([\d\.]+k?)", s, flags=re.IGNORECASE)
+        range_match = re.findall(
+            r"([\d\.]+k?)\s*[–-]\s*([\d\.]+k?)", s, flags=re.IGNORECASE
+        )
 
         # Salary appears as a range (130K-160K)
         if range_match:
@@ -385,24 +440,26 @@ class Clean:
 
         # Salary appears as a single number ('90K a year' or '45/hr')
         else:
-
             single_match = re.findall(r"([\d\.]+k?)", s, flags=re.IGNORECASE)
             if not single_match:
-                return {k: None for k in ["min_raw","max_raw","avg_value","annual","period"]}
-        
+                return {
+                    k: None
+                    for k in ["min_raw", "max_raw", "avg_value", "annual", "period"]
+                }
+
             low = high = self.convert_number(single_match[0])
-    
+
         # Compute averages
         avg = (low + high) / 2
 
         # Convert to annual salary based on the pay period
         if period == "hour":
-            annual = avg * 40 * 52 # 40 hours * 52 weeks
+            annual = avg * 40 * 52  # 40 hours * 52 weeks
         elif period == "month":
             annual = avg * 12
         else:
             annual = avg
-    
+
         return {
             "min_raw": low,
             "max_raw": high,
@@ -432,14 +489,21 @@ class Clean:
         # Convert K-notation to a value
         if value.endswith("k"):
             return float(value[:-1]) * 1000
-    
+
         # Convert simple number to a float
         return float(value)
 
+if __name__=='__main__':
 
-# if __name__=='__main__':
+    api_key = input("Enter your API key: ").strip()
+    job = input("Enter the job title: ").strip()
 
-#     j = JobSearch('Your_API_Key')
+    # 1. Run search across all states
+    j = JobSearch(api_key)
+    my_search = j.search_all_states(job, save=True)
+    print(my_search)
 
-#     my_search = j.search_all_states('Cybersecurity', save=True)
-#     print(my_search)
+    # 2. Load + clean the saved data
+    c = Clean()
+    clean_search = c.create_dataset(job, all_states=True save=True)
+    print(clean_search)
