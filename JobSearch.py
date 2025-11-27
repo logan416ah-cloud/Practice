@@ -189,7 +189,7 @@ class Clean:
     def create_dataset(
             self, 
             job_title, 
-            location=None, 
+            state=None, 
             all_states=False, 
             save=False,
             year=None,
@@ -197,23 +197,50 @@ class Clean:
             day=None,
             date=None,
             ):
+        """
+        Loads and compiles job listing CSV files into a single pandas DataFrame.
+
+        This method searches the 'Job_Listings' directory for CSV files that match
+        the specified job titles, state, and optional date filters, then merges
+        them into on unified dataset.
         
+        Args:
+            job_title (str): The job title to filter by (ex., "Cybersecurity").
+            state (str, optional): the state to filter by. (Must omit if 
+                all_states=True).
+            all_states (bool): If True, loads data from all states instead of
+                specific state.
+            save (bool): Whether you want to save the dataset as CSV
+            year (int, optional): Filter by year (YYYY).
+            month (int, optional): Filter by month (MM). Requires year. 
+            day (int, optional): Filter by day (DD). Requires year & month.
+            date (datetime, optional): Full date object instead of 
+                year/month/day arguments.
+
+        Returns:
+            pandas.DataFrame: The  DataFrame containing the merged job listing data.
+
+        Raises:
+            ValueError: If both state and all_states are specified, or neither is. 
+        """
+        
+        # Converts job title into a string suited for the CSV file creation.
         job_title_safe = job_title.replace(" ","_")
-        valid = (all_states and location is None) or (not all_states and location is not None)
+
+        # Validate whether all_states or specified state. Can't have both.
+        valid = (all_states and state is None) or (not all_states and state is not None)
 
         if not valid:
-            raise ValueError("You must specify a location OR set ALL=True")
+            raise ValueError("You must specify a state OR set all_state=True")
 
-        if save and not all_states:
-            raise ValueError("Dataset already saved to computer")
-
-        if location is not None:
-            location_safe = location.replace(" ","_")
-            prefix = f"{location_safe}_{job_title_safe}_jobs_"
+        # Contruct the prefix for the file name.
+        if state is not None:
+            state_safe = state.replace(" ","_") 
+            prefix = f"{state_safe}_{job_title_safe}_jobs_"
         else:
             prefix = f"*_{job_title_safe}_jobs_"
 
-        if date:
+        if date: # If date was specified, break down. 
             year = date.year
             month = date.month
             day = date.day
@@ -223,6 +250,7 @@ class Clean:
             if (month or day) and not year:
                 raise ValueError("Year is required when filtering by month or day.")
 
+            # Create the file patten for the CSV file.
             if year and month and day:
                 file_pattern = f"{prefix}{year}-{month:02d}-{day:02d}.csv"
             elif year and month:
@@ -233,14 +261,16 @@ class Clean:
         else:
             file_pattern = f"{prefix}*.csv"
 
+        # List containing the specified files. 
         files = list(self.data_folder.glob(file_pattern))
 
         if not files:
             print("No data files found.")
             return pd.DataFrame()
         
-        datasets = []
+        datasets = [] 
 
+        # Loop to read through all CSV files and convert into a pandas DataFrame.
         for f in tqdm(files, desc="Loading job data", unit='file'):
             try:
                 df = pd.read_csv(f)
@@ -248,12 +278,17 @@ class Clean:
                 print(f"\nEmpty CSV skipped: {f}")
                 continue
             
-            datasets.append(df)
+            datasets.append(df) # Add the DataFrame to the list.
         
+        # Combine the DataFrames into one. 
         combined_df = pd.concat(datasets, ignore_index=True) if datasets else pd.DataFrame()
 
-
         if not combined_df.empty and "salary" in combined_df.columns:
+
+            # Applys parse_salary() to determine:
+            # "min_raw","max_raw", "avg_value","annual","period"
+            #
+            # Then applies it to the DataFrame. 
             parsed = combined_df["salary"].apply(self.parse_salary)
 
             parsed_df = parsed.apply(pd.Series)
@@ -268,18 +303,44 @@ class Clean:
             combined_df.to_csv(file_path, index=False)
 
         print(f"Combined dataset created with {len(combined_df)} rows.")
-        # print(combined_df["salary"].head(20).tolist())
 
         return combined_df
 
     def parse_salary(self, s):
+        """
+        Parse raw salary text into numeric values
+        
+        Handles formats such as:
+            "130K-160K a year"
+            "30.00-37.50 an hour"
+            "6,211-15,211 a month"
+            "90K a year"
+            "US$132K-US$180K a year"
+            "$65K-$90K a year"
+        
+        Args:
+            s (str): Raw salary string from the dataset.
 
+        Returns:
+            dict: A dictionary containing:
+                - min_raw (float or None): Minimum salary value.
+                - max_raw (float or None): Maximum salary value.
+                - avg_value (float or None): Average of min and max.
+                - annual (float or None): Annualized salary.
+                - period (str or None): "hour", "month", "year"
+        """
+        
+        # If salary is missing OR not a string, return None. 
         if not isinstance(s, str) or s.strip() == "":
             return {k: None for k in ["min_raw","max_raw","avg_value","annual","period"]}
     
-        original = s
+        original = s # Stores the original for period detection. 
+
+        # Removes extra characters in order to convert sting characters into a float.
         s = s.replace(",","").replace("US$","").replace("$","").strip()
 
+        # Determines the pay period from the original string.
+        # Uses regex to check for "hour" or "hr" safely.
         if re.search(r'\bhour\b|\bhr\b', original.lower()):
             period = "hour"
         elif "month" in original.lower():
@@ -287,25 +348,56 @@ class Clean:
         else:
             period = "year"
 
+        # --------------------------
+        # REGEX EXPLANATION 
+        #
+        # \d: Matches any digit (0-9)
+        # .: Matches any character 
+        # []: Character set (matches any single character within the brackets)
+        # +: Matches 1 or more occurences of the preceding element
+        # (): Grouping (Captures the matched content)
+        # ?: Matches 0 or 1 occurrence of the preceding elemtent
+        # \s: Matches any whitespace character
+        # *: Matches 0 or more occurences of the preceding element
+        #
+        # --------------------------
+        #
+        # ([\d\.]+k?)   → Capture a number that may include decimals and optional 'k'
+        # \s*           → Allow optional spaces
+        # [–-]          → Match either a hyphen (-) or an EN dash (–)
+        # \s*           → Optional spaces
+        # ([\d\.]+k?)   → Capture the second number in the salary range
+        #
+        # This detects pairs like:
+        #     "130k–160k"
+        #     "30.00-37.50"
+        #     "6211–15211"
+        # --------------------------
+
         range_match = re.findall(r"([\d\.]+k?)\s*[–-]\s*([\d\.]+k?)", s, flags=re.IGNORECASE)
 
+        # Salary appears as a range (130K-160K)
         if range_match:
             low, high = range_match[0]
 
             low = self.convert_number(low)
             high = self.convert_number(high)
 
+        # Salary appears as a single number ('90K a year' or '45/hr')
         else:
+
             single_match = re.findall(r"([\d\.]+k?)", s, flags=re.IGNORECASE)
             if not single_match:
                 return {k: None for k in ["min_raw","max_raw","avg_value","annual","period"]}
         
             low = high = self.convert_number(single_match[0])
     
+        # Compute averages
         avg = (low + high) / 2
 
+        # Convert to annual salary based on the pay period
         if period == "hour":
-            annual = avg * 40 * 52
+            annual = avg * 40 * 52 # 40 hours * 52 weeks
         elif period == "month":
             annual = avg * 12
         else:
@@ -320,12 +412,28 @@ class Clean:
         }
 
     def convert_number(self, value):
+        """
+        Converts a numeric value from a dataset into a float.
+
+        Handles:
+            - K notation ("130K" -> 130000)
+            - Decimal values ("37.50" -> 37.5)
+            - Plain numbers (6211)
+
+        Args:
+            value (str): The numeric string.
+
+        Returns:
+            float: The numeric string converted to a float.
+        """
 
         value = value.strip().lower()
 
+        # Convert K-notation to a value
         if value.endswith("k"):
             return float(value[:-1]) * 1000
     
+        # Convert simple number to a float
         return float(value)
 
 
