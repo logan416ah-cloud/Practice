@@ -3,7 +3,7 @@ from pathlib import Path
 import pandas as pd
 import datetime as dt
 from tqdm import tqdm
-
+import re
 
 class JobSearch:
     """
@@ -252,6 +252,14 @@ class Clean:
         
         combined_df = pd.concat(datasets, ignore_index=True) if datasets else pd.DataFrame()
 
+
+        if not combined_df.empty and "salary" in combined_df.columns:
+            parsed = combined_df["salary"].apply(self.parse_salary)
+
+            parsed_df = parsed.apply(pd.Series)
+
+            combined_df = pd.concat([combined_df, parsed_df], axis=1)
+
         if save and all_states:
             save_path = self.base_path / "Job_Listings" / "Custom_dataset_folder"
             save_path.mkdir(exist_ok=True)
@@ -260,7 +268,65 @@ class Clean:
             combined_df.to_csv(file_path, index=False)
 
         print(f"Combined dataset created with {len(combined_df)} rows.")
+        # print(combined_df["salary"].head(20).tolist())
+
         return combined_df
+
+    def parse_salary(self, s):
+
+        if not isinstance(s, str) or s.strip() == "":
+            return {k: None for k in ["min_raw","max_raw","avg_value","annual","period"]}
+    
+        original = s
+        s = s.replace(",","").replace("US$","").replace("$","").strip()
+
+        if re.search(r'\bhour\b|\bhr\b', original.lower()):
+            period = "hour"
+        elif "month" in original.lower():
+            period = "month"
+        else:
+            period = "year"
+
+        range_match = re.findall(r"([\d\.]+k?)\s*[–-]\s*([\d\.]+k?)", s, flags=re.IGNORECASE)
+
+        if range_match:
+            low, high = range_match[0]
+
+            low = self.convert_number(low)
+            high = self.convert_number(high)
+
+        else:
+            single_match = re.findall(r"([\d\.]+k?)", s, flags=re.IGNORECASE)
+            if not single_match:
+                return {k: None for k in ["min_raw","max_raw","avg_value","annual","period"]}
+        
+            low = high = self.convert_number(single_match[0])
+    
+        avg = (low + high) / 2
+
+        if period == "hour":
+            annual = avg * 40 * 52
+        elif period == "month":
+            annual = avg * 12
+        else:
+            annual = avg
+    
+        return {
+            "min_raw": low,
+            "max_raw": high,
+            "avg_value": round(avg, 2),
+            "annual": round(annual, 2),
+            "period": period,
+        }
+
+    def convert_number(self, value):
+
+        value = value.strip().lower()
+
+        if value.endswith("k"):
+            return float(value[:-1]) * 1000
+    
+        return float(value)
 
 
 # if __name__=='__main__':
