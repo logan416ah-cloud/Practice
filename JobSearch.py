@@ -493,17 +493,37 @@ class Clean:
         # Convert simple number to a float
         return float(value)
 
-if __name__=='__main__':
-
+def run_demo():
+    """
+    Demo workflow for the JobSearch and Clean classes.
+    This function:
+        1. Prompts the user for input
+        2. Searches the specified state for job listings
+        3. Creates and cleans a combined dataset
+        4. Computes and prints average annual salary
+    """
     api_key = input("Enter your API key: ").strip()
     job = input("Enter the job title: ").strip()
+    state = input("Enter a state: ")
 
     # 1. Run search across all states
     j = JobSearch(api_key)
-    my_search = j.search_all_states(job, save=True)
+    my_search = j.search(job, state, save=True)
     print(my_search)
 
     # 2. Load + clean the saved data
     c = Clean()
-    clean_search = c.create_dataset(job, all_states=True save=True)
+    clean_search = c.create_dataset(job, state, save=True)
     print(clean_search)
+
+    # 3. Compute average salary by state
+    state_salary = (
+        clean_search.groupby("state")["annual"]
+        .mean()
+        .sort_values(ascending=False)
+    )
+
+    print(state_salary)
+
+if __name__=='__main__':
+    run_demo()
