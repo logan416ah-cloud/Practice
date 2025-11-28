@@ -5,6 +5,7 @@ import datetime as dt
 from tqdm import tqdm
 import re
 
+
 class JobSearch:
     """
     Searches for job listings using SerpApi's Google Jobs API.
@@ -281,7 +282,7 @@ class Clean:
         if not valid:
             raise ValueError(
                 "You must specify either a 'state' OR  'all_state=True', but not both"
-                )
+            )
 
         # Contruct the prefix for the file name.
         if state is not None:
@@ -496,9 +497,9 @@ class Clean:
         """
         Filter through existing CSV files by keyword. Searches the descriptions
         of job listings.
-        
+
         This method loads a compiled dataset for the specified job title (across all
-        state), filters through job descriptions, and then computes how frequently 
+        state), filters through job descriptions, and then computes how frequently
         each keyword appears in the full dataset.
 
         Args:
@@ -506,21 +507,21 @@ class Clean:
             *keywords (str): Any number of words you wish to search
 
         Returns:
-            pandas.DataFrame: 
+            pandas.DataFrame:
                 A DataFrame containing, for each keyword:
                     - keyword (str): The keyword searched.
                     - count (int): Total number of jobs containing the keyword.
                     - percent(total) (float): Percentage of all job listing metions.
-                    - percent(filtered) (float): Percentage of Filtered rows 
-                
+                    - percent(filtered) (float): Percentage of Filtered rows
+
                 Example structure:
                     keyword | count | percent(total) | percent(filtered)
                     ----------------------------------------------------
                     python  | 382   | 81.20          | 92.40
                     splunk  | 120   | 25.52          | 45.00
-            
+
             If no data or keywords provided, returns an empty DataFrame.
-        
+
         Notes:
             - Search case-insensitive.
         """
@@ -537,7 +538,7 @@ class Clean:
         # Build regex pattern matching ANY of the keywords
         filter_keywords = r"(?i)(%s)" % "|".join(safe_keywords)
 
-        result = df[df['description'].str.contains(filter_keywords, na=False)]
+        result = df[df["description"].str.contains(filter_keywords, na=False)]
         result_rows = len(result)
 
         # Row count used to compute percentages
@@ -554,17 +555,22 @@ class Clean:
             )
 
             # Store results in a dictionary
-            keyword_stats.append({
-                "keyword": kw,
-                "count": count,
-                "percent(total)": round((count / df_rows) * 100, 2),
-                "percent(filtered)": round((count / result_rows) * 100, 2) if result_rows > 0 else 0
-            })
+            keyword_stats.append(
+                {
+                    "keyword": kw,
+                    "count": count,
+                    "percent(total)": round((count / df_rows) * 100, 2),
+                    "percent(filtered)": round((count / result_rows) * 100, 2)
+                    if result_rows > 0
+                    else 0,
+                }
+            )
 
         # Convert list into a DataFrame
         kw_df = pd.DataFrame(keyword_stats)
 
         return kw_df
+
 
 def run_demo():
     """
@@ -591,14 +597,13 @@ def run_demo():
 
     # 3. Compute average salary by state
     state_salary = (
-        clean_search.groupby("state")["annual"]
-        .mean()
-        .sort_values(ascending=False)
+        clean_search.groupby("state")["annual"].mean().sort_values(ascending=False)
     )
 
     print(state_salary)
 
-if __name__=='__main__':
+
+if __name__ == "__main__":
     run_demo()
 
     # c = Clean()
