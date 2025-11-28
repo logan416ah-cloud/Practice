@@ -5,7 +5,6 @@ import datetime as dt
 from tqdm import tqdm
 import re
 
-
 class JobSearch:
     """
     Searches for job listings using SerpApi's Google Jobs API.
@@ -493,6 +492,80 @@ class Clean:
         # Convert simple number to a float
         return float(value)
 
+    def filterdesc(self, job_title, *keywords):
+        """
+        Filter through existing CSV files by keyword. Searches the descriptions
+        of job listings.
+        
+        This method loads a compiled dataset for the specified job title (across all
+        state), filters through job descriptions, and then computes how frequently 
+        each keyword appears in the full dataset.
+
+        Args:
+            job_title (str): Job you wish to filter through
+            *keywords (str): Any number of words you wish to search
+
+        Returns:
+            pandas.DataFrame: 
+                A DataFrame containing, for each keyword:
+                    - keyword (str): The keyword searched.
+                    - count (int): Total number of jobs containing the keyword.
+                    - percent(total) (float): Percentage of all job listing metions.
+                    - percent(filtered) (float): Percentage of Filtered rows 
+                
+                Example structure:
+                    keyword | count | percent(total) | percent(filtered)
+                    ----------------------------------------------------
+                    python  | 382   | 81.20          | 92.40
+                    splunk  | 120   | 25.52          | 45.00
+            
+            If no data or keywords provided, returns an empty DataFrame.
+        
+        Notes:
+            - Search case-insensitive.
+        """
+        # Create the dataset to filter through
+        df = self.create_dataset(job_title, all_states=True)
+
+        # If dataset is empty OR no keywords, return empty DataFrame
+        if df.empty or not keywords:
+            return pd.DataFrame()
+
+        # Allow for regex to treat keywords literally
+        safe_keywords = [re.escape(k) for k in keywords]
+
+        # Build regex pattern matching ANY of the keywords
+        filter_keywords = r"(?i)(%s)" % "|".join(safe_keywords)
+
+        result = df[df['description'].str.contains(filter_keywords, na=False)]
+        result_rows = len(result)
+
+        # Row count used to compute percentages
+        df_rows = len(df)
+        keyword_stats = []
+
+        # Count each keyword individually
+        for kw in keywords:
+            safe_kw = re.escape(kw)
+
+            # Count how many jobs contain this keyword
+            count = int(
+                df["description"].str.contains(safe_kw, case=False, na=False).sum()
+            )
+
+            # Store results in a dictionary
+            keyword_stats.append({
+                "keyword": kw,
+                "count": count,
+                "percent(total)": round((count / df_rows) * 100, 2),
+                "percent(filtered)": round((count / result_rows) * 100, 2) if result_rows > 0 else 0
+            })
+
+        # Convert list into a DataFrame
+        kw_df = pd.DataFrame(keyword_stats)
+
+        return kw_df
+
 def run_demo():
     """
     Demo workflow for the JobSearch and Clean classes.
@@ -527,3 +600,8 @@ def run_demo():
 
 if __name__=='__main__':
     run_demo()
+
+    # c = Clean()
+    # clean_search = c.filterdesc('Cybersecurity', 'COMPTIA', 'python', 'Security+', 'splunk')
+
+    # print(clean_search)
