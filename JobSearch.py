@@ -14,7 +14,7 @@ class JobSearch:
         api_key (str): SerpApi API Key.
     """
 
-    def __init__(self, api_key):
+    def __init__(self, api_key: str) -> None:
         """
         Initializes the client with the url and validates the API Key.
 
@@ -32,7 +32,7 @@ class JobSearch:
             raise ValueError("Invalid key")
 
     @staticmethod
-    def validate_key(api_key):
+    def validate_key(api_key: str) -> bool:
         """
         Validates your API key by using a test request.
 
@@ -64,7 +64,7 @@ class JobSearch:
             print(f"WARNING: API KEY check failed. Error: {e}")
         return False
 
-    def search(self, job_title, location, save=False):
+    def search(self, job_title: str, location: str, save: bool = False) -> pd.DataFrame:
         """
         Searches for job listings within any specified state in the United States.
 
@@ -79,8 +79,6 @@ class JobSearch:
         job_list = []
         next_page_token = None
         q = f"{job_title} {location}"
-
-        page_count = 0
 
         with tqdm(desc="Fetching pages", unit="pages") as pbar:
             while True:
@@ -108,7 +106,7 @@ class JobSearch:
                             "job_title": job.get("title"),
                             "company": job.get("company_name"),
                             "location": job.get("location"),
-                            "Qualifications": job.get("job_highlights", [{}])[0].get(
+                            "qualifications": job.get("job_highlights", [{}])[0].get(
                                 "items", []
                             ),
                             "salary": job.get("detected_extensions", {}).get("salary"),
@@ -138,10 +136,12 @@ class JobSearch:
                 safe_title = job_title.replace(" ", "_")
                 file_path = folder / f"{location}_{safe_title}_jobs_{today}.csv"
                 job_df.to_csv(file_path, index=False)
+
+                return job_df
             else:
                 return job_df
 
-    def search_all_states(self, job_title, save=False):
+    def search_all_states(self, job_title: str, save: bool = False) -> pd.DataFrame:
         states = [
             "Alabama",
             "Alaska",
@@ -205,11 +205,9 @@ class JobSearch:
         all_jobs = []
 
         for state in tqdm(states, desc="Searching through states...", unit="state"):
-            print(f"Searching {state}...")
-
             state_df = self.search(job_title, state, save=False)
 
-            if state_df is not None and not state_df.empty:
+            if not state_df.empty:
                 state_df["state"] = state
                 all_jobs.append(state_df)
 
@@ -229,23 +227,27 @@ class JobSearch:
 
 
 class Clean:
-    def __init__(self):
-        self.base_path = Path(__file__).parent
+    def __init__(self) -> None:
+        try:
+            self.base_path = Path(__file__).parent
+        except NameError:
+            self.base_path = Path.cwd()
+
         self.data_folder = self.base_path / "Job_Listings"
         if not self.data_folder.exists():
             print("No Jobs_Listing folder. Run JobSearch.search()")
 
     def create_dataset(
         self,
-        job_title,
-        state=None,
-        all_states=False,
-        save=False,
-        year=None,
-        month=None,
-        day=None,
-        date=None,
-    ):
+        job_title: str,
+        state: str | None = None,
+        all_states: bool = False,
+        save: bool = False,
+        year: int | None = None,
+        month: int | None = None,
+        day: int | None = None,
+        date: dt.datetime | None = None,
+    ) -> pd.DataFrame:
         """
         Loads and compiles job listing CSV files into a single pandas DataFrame.
 
@@ -281,7 +283,7 @@ class Clean:
 
         if not valid:
             raise ValueError(
-                "You must specify either a 'state' OR  'all_state=True', but not both"
+                "You must specify either 'state' OR  all_state=True, but not both"
             )
 
         # Contruct the prefix for the file name.
@@ -357,7 +359,7 @@ class Clean:
 
         return combined_df
 
-    def parse_salary(self, s):
+    def parse_salary(self, s: str) -> dict:
         """
         Parse raw salary text into numeric values
 
@@ -388,16 +390,26 @@ class Clean:
             }
 
         original = s  # Stores the original for period detection.
+        s = re.sub(r"\(.*?\)", "", s)
 
         # Removes extra characters in order to convert sting characters into a float.
         s = s.replace(",", "").replace("US$", "").replace("$", "").strip()
 
         # Determines the pay period from the original string.
         # Uses regex to check for "hour" or "hr" safely.
-        if re.search(r"\bhour\b|\bhr\b", original.lower()):
+
+        text = original.lower()
+
+        if re.search(r"hour|/hr|/h|\bhr\b", text):
             period = "hour"
-        elif "month" in original.lower():
+        elif re.search(r"day|/day", text):
+            period = "day"
+        elif re.search(r"\bweek\b|/week|/wk\b", text):
+            period = "week"
+        elif "month" in text:
             period = "month"
+        elif re.search(r"yr|/yr|per year", text):
+            period = "year"
         else:
             period = "year"
 
@@ -455,6 +467,10 @@ class Clean:
         # Convert to annual salary based on the pay period
         if period == "hour":
             annual = avg * 40 * 52  # 40 hours * 52 weeks
+        elif period == "day":
+            annual = avg * 260
+        elif period == "week":
+            annual = avg * 52
         elif period == "month":
             annual = avg * 12
         else:
@@ -468,7 +484,7 @@ class Clean:
             "period": period,
         }
 
-    def convert_number(self, value):
+    def convert_number(self, value: str) -> float:
         """
         Converts a numeric value from a dataset into a float.
 
@@ -493,13 +509,10 @@ class Clean:
         # Convert simple number to a float
         return float(value)
 
-    def filterdesc(self, job_title, *keywords):
+    def filterdesc(self, df: pd.DataFrame, *keywords: str) -> pd.DataFrame:
         """
-        Filter through existing CSV files by keyword. Searches the descriptions
-        of job listings.
-
         This method loads a compiled dataset for the specified job title (across all
-        state), filters through job descriptions, and then computes how frequently
+        states), filters through job descriptions, and then computes how frequently
         each keyword appears in the full dataset.
 
         Args:
@@ -511,11 +524,11 @@ class Clean:
                 A DataFrame containing, for each keyword:
                     - keyword (str): The keyword searched.
                     - count (int): Total number of jobs containing the keyword.
-                    - percent(total) (float): Percentage of all job listing metions.
-                    - percent(filtered) (float): Percentage of Filtered rows
+                    - percent_total (float): Percentage of all job listing mentions.
+                    - percent_filtered (float): Percentage of Filtered rows
 
                 Example structure:
-                    keyword | count | percent(total) | percent(filtered)
+                    keyword | count | percent_total | percent_filtered
                     ----------------------------------------------------
                     python  | 382   | 81.20          | 92.40
                     splunk  | 120   | 25.52          | 45.00
@@ -525,42 +538,39 @@ class Clean:
         Notes:
             - Search case-insensitive.
         """
-        # Create the dataset to filter through
-        df = self.create_dataset(job_title, all_states=True)
-
         # If dataset is empty OR no keywords, return empty DataFrame
         if df.empty or not keywords:
             return pd.DataFrame()
 
+        df["_desc"] = df["description"].fillna("").astype(str).str.lower()
+
         # Allow for regex to treat keywords literally
-        safe_keywords = [re.escape(k) for k in keywords]
+        safe_keywords = [re.escape(k.lower()) for k in keywords]
 
         # Build regex pattern matching ANY of the keywords
-        filter_keywords = r"(?i)(%s)" % "|".join(safe_keywords)
+        filter_keywords = r"(%s)" % "|".join(safe_keywords)
 
-        result = df[df["description"].str.contains(filter_keywords, na=False)]
+        result = df[df["_desc"].str.contains(filter_keywords, na=False)]
         result_rows = len(result)
-
-        # Row count used to compute percentages
         df_rows = len(df)
-        keyword_stats = []
 
         # Count each keyword individually
+        keyword_stats = []
         for kw in keywords:
-            safe_kw = re.escape(kw)
+            safe_kw = re.escape(kw.lower())
 
             # Count how many jobs contain this keyword
-            count = int(
-                df["description"].str.contains(safe_kw, case=False, na=False).sum()
-            )
+            count = int(df["_desc"].str.contains(safe_kw, na=False).sum())
 
             # Store results in a dictionary
             keyword_stats.append(
                 {
                     "keyword": kw,
                     "count": count,
-                    "percent(total)": round((count / df_rows) * 100, 2),
-                    "percent(filtered)": round((count / result_rows) * 100, 2)
+                    "percent_total": round((count / df_rows) * 100, 2)
+                    if df_rows
+                    else 0,
+                    "percent_filtered": round((count / result_rows) * 100, 2)
                     if result_rows > 0
                     else 0,
                 }
@@ -572,41 +582,15 @@ class Clean:
         return kw_df
 
 
-def run_demo():
-    """
-    Demo workflow for the JobSearch and Clean classes.
-    This function:
-        1. Prompts the user for input
-        2. Searches the specified state for job listings
-        3. Creates and cleans a combined dataset
-        4. Computes and prints average annual salary
-    """
-    api_key = input("Enter your API key: ").strip()
-    job = input("Enter the job title: ").strip()
-    state = input("Enter a state: ")
-
-    # 1. Run search across all states
-    j = JobSearch(api_key)
-    my_search = j.search(job, state, save=True)
-    print(my_search)
-
-    # 2. Load + clean the saved data
-    c = Clean()
-    clean_search = c.create_dataset(job, state, save=True)
-    print(clean_search)
-
-    # 3. Compute average salary by state
-    state_salary = (
-        clean_search.groupby("state")["annual"].mean().sort_values(ascending=False)
-    )
-
-    print(state_salary)
-
-
 if __name__ == "__main__":
-    run_demo()
+    # Example Usage
+    j = JobSearch("your_api_key_here")
 
-    # c = Clean()
-    # clean_search = c.filterdesc('Cybersecurity', 'COMPTIA', 'python', 'Security+', 'splunk')
+    df = j.search("Cybersecurity", "New York", save=True)
+    print(df.head())
 
-    # print(clean_search)
+    c = Clean()
+    combined = c.create_dataset("Cybersecurity", all_states=True)
+    print(combined.head())
+
+    print(c.filterdesc(combined, "python", "splunk", "aws"))
